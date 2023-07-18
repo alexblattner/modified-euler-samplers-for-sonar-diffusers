@@ -1,22 +1,28 @@
-from diffusers import EulerDiscreteScheduler
-from torch import Tensor
-import torch
 from typing import Callable, List, Optional, Tuple, Union, Dict, Any, Literal
+
+import torch
+from torch import Tensor
+from diffusers import EulerDiscreteScheduler
 from diffusers.utils import randn_tensor
 from diffusers.configuration_utils import ConfigMixin
 from diffusers.schedulers.scheduling_utils import SchedulerMixin
+
+
 class Euler(EulerDiscreteScheduler, SchedulerMixin, ConfigMixin):
-    history_d=0
-    momentum=0.95
-    momentum_hist=0.75
-    def init_hist_d(self,x:Tensor) -> Union[Literal[0], Tensor]:
+
+    history_d = 0
+    momentum = 0.95
+    momentum_hist = 0.75
+
+    def init_hist_d(self, x:Tensor) -> Union[Literal[0], Tensor]:
         # memorize delta momentum
-        if   self.history_d == 0:      self.history_d = 0
+        if   self.history_d == 0:           self.history_d = 0
         elif self.history_d == 'rand_init': self.history_d = x
         elif self.history_d == 'rand_new':  self.history_d = torch.randn_like(x)
         else: raise ValueError(f'unknown momentum_hist_init: {self.history_d}')
+
     def momentum_step(self, x:Tensor, d:Tensor, dt:Tensor):
-        hd=self.history_d
+        hd = self.history_d
         # correct current `d` with momentum
         p = 1.0 - self.momentum
         self.momentum_d = (1.0 - p) * d + p * hd    
@@ -30,8 +36,10 @@ class Euler(EulerDiscreteScheduler, SchedulerMixin, ConfigMixin):
             hd = self.momentum_d
         else:
             hd = (1.0 - q) * hd + q * self.momentum_d
-        self.history_d=hd
+        self.history_d = hd
+
         return x
+
     def step(
         self,
         model_output: torch.FloatTensor,
@@ -124,10 +132,8 @@ class Euler(EulerDiscreteScheduler, SchedulerMixin, ConfigMixin):
         derivative = (sample - pred_original_sample) / sigma_hat
 
         dt = self.sigmas[step_index + 1] - sigma_hat
-
-        prev_sample = self.momentum_step(sample,derivative,dt)
-        if not return_dict:
-            return (prev_sample,)
-
-        output={prev_sample:prev_sample, pred_original_sample:pred_original_sample}
+        prev_sample = self.momentum_step(sample, derivative, dt)
+        
+        if not return_dict: return (prev_sample,)
+        output = { prev_sample: prev_sample, pred_original_sample: pred_original_sample }
         return output
