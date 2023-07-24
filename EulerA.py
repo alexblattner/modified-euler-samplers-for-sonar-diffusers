@@ -2,9 +2,24 @@ from diffusers import EulerAncestralDiscreteScheduler
 from torch import Tensor
 import torch
 from typing import Callable, List, Optional, Tuple, Union, Dict, Any, Literal
-from diffusers.utils import randn_tensor
+from diffusers.utils import randn_tensor, BaseOutput
 from diffusers.configuration_utils import ConfigMixin
 from diffusers.schedulers.scheduling_utils import SchedulerMixin
+class Output(BaseOutput):
+    """
+    Output class for the scheduler's step function output.
+
+    Args:
+        prev_sample (`torch.FloatTensor` of shape `(batch_size, num_channels, height, width)` for images):
+            Computed sample (x_{t-1}) of previous timestep. `prev_sample` should be used as next model input in the
+            denoising loop.
+        pred_original_sample (`torch.FloatTensor` of shape `(batch_size, num_channels, height, width)` for images):
+            The predicted denoised sample (x_{0}) based on the model output from the current timestep.
+            `pred_original_sample` can be used to preview progress or for guidance.
+    """
+
+    prev_sample: torch.FloatTensor
+    pred_original_sample: Optional[torch.FloatTensor] = None
 class EulerA(EulerAncestralDiscreteScheduler, SchedulerMixin, ConfigMixin):
     history_d=0
     momentum=0.95
@@ -111,5 +126,6 @@ class EulerA(EulerAncestralDiscreteScheduler, SchedulerMixin, ConfigMixin):
 
         if not return_dict:
             return (prev_sample,)
-        output={prev_sample:prev_sample, pred_original_sample:pred_original_sample}
-        return output
+        return Output(
+            prev_sample=prev_sample, pred_original_sample=pred_original_sample
+        )
