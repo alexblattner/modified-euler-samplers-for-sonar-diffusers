@@ -2,7 +2,13 @@ from diffusers import EulerDiscreteScheduler
 from torch import Tensor
 import torch
 from typing import Callable, List, Optional, Tuple, Union, Dict, Any, Literal
-from diffusers.utils import randn_tensor, BaseOutput
+from diffusers.utils import BaseOutput
+try:
+    # Try the old import path
+    from diffusers.utils import randn_tensor
+except ImportError:
+    # If the old import path is not available, use the new import path
+    from diffusers.utils.torch_utils import randn_tensor
 from diffusers.configuration_utils import ConfigMixin
 from diffusers.schedulers.scheduling_utils import SchedulerMixin
 class Output(BaseOutput):
