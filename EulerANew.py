@@ -30,14 +30,15 @@ class EulerA(EulerAncestralDiscreteScheduler):
     history_d=0
     momentum=0.95
     momentum_hist=0.75
+    used_history_d=None
     def init_hist_d(self,x:Tensor) -> Union[Literal[0], Tensor]:
         # memorize delta momentum
-        if   self.history_d == 0:      self.history_d = 0
-        elif self.history_d == 'rand_init': self.history_d = x
-        elif self.history_d == 'rand_new':  self.history_d = torch.randn_like(x)
+        if   self.history_d == 0:      self.used_history_d = 0
+        elif self.history_d == 'rand_init': self.used_history_d = x
+        elif self.history_d == 'rand_new':  self.used_history_d = torch.randn_like(x)
         else: raise ValueError(f'unknown momentum_hist_init: {self.history_d}')
     def momentum_step(self, x:Tensor, d:Tensor, dt:Tensor):
-        hd=self.history_d
+        hd=self.used_history_d
         # correct current `d` with momentum
         p = 1.0 - self.momentum
         momentum_d = (1.0 - p) * d + p * hd    
@@ -51,7 +52,7 @@ class EulerA(EulerAncestralDiscreteScheduler):
             hd = momentum_d
         else:
             hd = (1.0 - q) * hd + q * momentum_d
-        self.history_d=hd
+        self.used_history_d=hd
         return x
     def step(
         self,
@@ -79,7 +80,7 @@ class EulerA(EulerAncestralDiscreteScheduler):
             a `tuple`. When returning a tuple, the first element is the sample tensor.
 
         """
-        if not isinstance(self.history_d, torch.Tensor) and not isinstance(self.history_d, int):
+        if not isinstance(self.used_history_d, torch.Tensor) and not isinstance(self.used_history_d, int):
             self.init_hist_d(sample)
         if (
             isinstance(timestep, int)
@@ -129,6 +130,8 @@ class EulerA(EulerAncestralDiscreteScheduler):
 
         prev_sample = prev_sample + noise * sigma_up
         self._step_index += 1
+        if self._step_index==(len(self.sigmas)-1):
+            self.used_history_d=None
         if not return_dict:
             return (prev_sample,)
         return Output(

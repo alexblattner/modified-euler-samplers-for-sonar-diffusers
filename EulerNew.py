@@ -30,18 +30,55 @@ class Euler(EulerDiscreteScheduler, SchedulerMixin, ConfigMixin):
     history_d=0
     momentum=0.95
     momentum_hist=0.75
+    used_history_d=None
     def init_hist_d(self,x:Tensor) -> Union[Literal[0], Tensor]:
         # memorize delta momentum
-        if   self.history_d == 0:      self.history_d = 0
-        elif self.history_d == 'rand_init': self.history_d = x
-        elif self.history_d == 'rand_new':  self.history_d = torch.randn_like(x)
+        if   self.history_d == 0:      self.used_history_d = 0
+        elif self.history_d == 'rand_init': self.used_history_d = x
+        elif self.history_d == 'rand_new':  self.used_history_d = torch.randn_like(x)
         else: raise ValueError(f'unknown momentum_hist_init: {self.history_d}')
+    # def add_noise(
+    #     self,
+    #     original_samples: torch.FloatTensor,
+    #     noise: torch.FloatTensor,
+    #     timesteps: torch.FloatTensor,
+    # ) -> torch.FloatTensor:
+    #     # Make sure sigmas and timesteps have the same device and dtype as original_samples
+    #     sigmas = self.sigmas.to(device=original_samples.device, dtype=original_samples.dtype)
+    #     if original_samples.device.type == "mps" and torch.is_floating_point(timesteps):
+    #         # mps does not support float64
+    #         schedule_timesteps = self.timesteps.to(original_samples.device, dtype=torch.float32)
+    #         timesteps = timesteps.to(original_samples.device, dtype=torch.float32)
+    #     else:
+    #         schedule_timesteps = self.timesteps.to(original_samples.device)
+    #         timesteps = timesteps.to(original_samples.device)
+    #     step_indices = []
+    #     print(212121221,timesteps)
+    #     for t in timesteps:
+    #         # Find the indices where schedule_timesteps is equal to t
+    #         indices = (schedule_timesteps == t).nonzero()
+    #         print(6666,indices)
+    #         print(4444,schedule_timesteps,t)
+    #         # Check if any indices were found
+    #         if indices.numel() > 0:
+    #             # Extract the first index as a scalar (assuming you want the first match)
+    #             index = indices[0].item()
+    #             step_indices.append(index)
+    #         else:
+    #             # Handle the case where no matching index was found
+    #             step_indices.append(None)
+    #     print(29292,step_indices)
+    #     sigma = sigmas[step_indices].flatten()
+    #     while len(sigma.shape) < len(original_samples.shape):
+    #         sigma = sigma.unsqueeze(-1)
+
+    #     noisy_samples = original_samples + noise * sigma
+    #     return noisy_samples
     def momentum_step(self, x:Tensor, d:Tensor, dt:Tensor):
-        hd=self.history_d
+        hd=self.used_history_d
         # correct current `d` with momentum
         p = 1.0 - self.momentum
-        self.momentum_d = (1.0 - p) * d + p * hd    
-        
+        self.momentum_d = (1.0 - p) * d + p * hd
         # Euler method with momentum
         x = x + self.momentum_d * dt
 
@@ -51,7 +88,7 @@ class Euler(EulerDiscreteScheduler, SchedulerMixin, ConfigMixin):
             hd = self.momentum_d
         else:
             hd = (1.0 - q) * hd + q * self.momentum_d
-        self.history_d=hd
+        self.used_history_d=hd
         return x
     def step(
         self,
@@ -87,7 +124,7 @@ class Euler(EulerDiscreteScheduler, SchedulerMixin, ConfigMixin):
             `tuple`. When returning a tuple, the first element is the sample tensor.
 
         """
-        if not isinstance(self.history_d, torch.Tensor) and not isinstance(self.history_d, int):
+        if not isinstance(self.used_history_d, torch.Tensor) and not isinstance(self.used_history_d, int):
             self.init_hist_d(sample)
         if (
             isinstance(timestep, int)
@@ -110,7 +147,6 @@ class Euler(EulerDiscreteScheduler, SchedulerMixin, ConfigMixin):
 
         if isinstance(timestep, torch.Tensor):
             timestep = timestep.to(self.timesteps.device)
-
         if self.step_index is None:
             self._init_step_index(timestep)
         sigma = self.sigmas[self.step_index]
@@ -148,7 +184,10 @@ class Euler(EulerDiscreteScheduler, SchedulerMixin, ConfigMixin):
         dt = self.sigmas[self.step_index + 1] - sigma_hat
 
         prev_sample = self.momentum_step(sample,derivative,dt)
+        # print(111111,pred_original_sample.shape)
         self._step_index+=1
+        if self._step_index==(len(self.sigmas)-1):
+            self.used_history_d=None
         if not return_dict:
             return (prev_sample,)
     
